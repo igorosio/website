@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Assistente Vocale</title>
+</head>
+<body>
+  <h1>Assistente Vocale</h1>
+
+  <button id="recordButton">Registra</button>
+  <div id="risposta"></div>
+
+  <script>
+    const recordButton = document.getElementById('recordButton');
+    const rispostaDiv = document.getElementById('risposta');
+
+    let mediaRecorder;
+    let audioChunks = [];
+
+    recordButton.addEventListener('click', () => {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(stream => {
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.ondataavailable = event => {
+              audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = () => {
+              const audioBlob = new Blob(audioChunks);
+              const audioUrl = URL.createObjectURL(audioBlob);
+              const reader = new FileReader();
+
+              reader.onloadend = () => {
+                const base64data = reader.result;
+                
+                // Invia l'audio al server
+                fetch('/', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                  },
+                  body: `audio_data=${base64data}` 
+                })
+                .then(response => response.json())
+                .then(data => {
+                  rispostaDiv.textContent = data.risposta;
+
+                  // Riproduci la risposta vocale
+                  const audioRisposta = new Audio(data.audio_risposta);
+                  audioRisposta.play();
+                })
+                .catch(error => console.error('Errore:', error));
+              };
+
+              reader.readAsDataURL(audioBlob); 
+              audioChunks = [];
+            };
+
+            recordButton.textContent = 'Stop';
+            mediaRecorder.start();
+          })
+          .catch(err => console.error('Errore accesso microfono:', err));
+      } else {
+        console.error('getUserMedia non supportato');
+      }
+    });
+
+    recordButton.addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        recordButton.textContent = 'Registra';
+      }
+    });
+  </script>
+</body>
+</html>
